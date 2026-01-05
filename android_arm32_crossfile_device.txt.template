@@ -1,0 +1,21 @@
+[binaries]
+c          = NDK_BIN / 'armv7a-linux-androideabi35-clang'
+cpp        = NDK_BIN / 'armv7a-linux-androideabi35-clang++'
+ar         = NDK_BIN / 'llvm-ar'
+nm         = NDK_BIN / 'llvm-nm'
+strip      = NDK_BIN / 'llvm-strip'
+ranlib     = NDK_BIN / 'llvm-ranlib'
+size       = NDK_BIN / 'llvm-size'
+ld         = NDK_BIN / 'ld'
+c_ld       = NDK_BIN / 'ld'
+objcopy    = NDK_BIN / 'llvm-objcopy'
+pkg-config = '/usr/bin/pkg-config'
+
+[host_machine]
+system     = 'android'
+cpu_family = 'aarch32'
+cpu        = 'armeabi-v7a'
+endian     = 'little'
+
+[constants]
+NDK_BIN = '${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/'

@@ -20,8 +20,16 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
+      - name: Set up NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27d
       - name: Setup meson
         run: python -m pip install meson ninja
+      - name: Generate Android Cross Files
+        run: |
+          envsubst < android_arm64_crossfile_device.txt.template > android_arm64_crossfile_device.txt
+          envsubst < android_arm32_crossfile_device.txt.template > android_arm32_crossfile_device.txt
       - name: Build linux x86
         run: |
           cd harfbuzz
@@ -31,13 +39,49 @@ jobs:
           strip --strip-debug build/src/libharfbuzz.so
           objcopy --add-gnu-debuglink=build/src/libharfbuzz.so.debug build/src/libharfbuzz.so
           cd ..
-      - name: Upload linux artifacts
+      - name: Build Android ARM64
+        run: |
+          cd harfbuzz
+          meson setup build_android_arm64 --cross-file ../android_arm64_crossfile_device.txt --wrap-mode=default --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+          meson compile -C build_android_arm64
+          cd build_android_arm64
+          ANDROID_NDK="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/"
+          "$ANDROID_NDK/llvm-objcopy" --only-keep-debug src/libharfbuzz.so src/libharfbuzz.so.debug
+          "$ANDROID_NDK/llvm-strip" --strip-debug src/libharfbuzz.so
+          "$ANDROID_NDK/llvm-objcopy" --add-gnu-debuglink=src/libharfbuzz.so.debug src/libharfbuzz.so
+          cd ../..
+      - name: Build Android ARM32
+        run: |
+          cd harfbuzz
+          meson setup build_android_arm32 --cross-file ../android_arm32_crossfile_device.txt --wrap-mode=default --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+          meson compile -C build_android_arm32
+          cd build_android_arm32
+          NDK_BIN="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/"
+          "$NDK_BIN/llvm-objcopy" --only-keep-debug src/libharfbuzz.so src/libharfbuzz.so.debug
+          "$NDK_BIN/llvm-strip" --strip-debug src/libharfbuzz.so
+          "$NDK_BIN/llvm-objcopy" --add-gnu-debuglink=src/libharfbuzz.so.debug src/libharfbuzz.so
+          cd ../..
+      - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
           name: linux-artifacts
           path: |
             ./harfbuzz/build/src/*.so
             ./harfbuzz/build/src/*.so.debug
+      - name: Upload Android ARM64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-arm64-artifacts
+          path: |
+            ./harfbuzz/build_android_arm64/src/*.so
+            ./harfbuzz/build_android_arm64/src/*.debug
+      - name: Upload Android ARM32 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-arm32-artifacts
+          path: |
+            ./harfbuzz/build_android_arm32/src/*.so
+            ./harfbuzz/build_android_arm32/src/*.debug
             
   windows:
     runs-on: windows-2022
@@ -50,21 +94,51 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
+      - name: Set up NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r27d
       - name: Setup meson
         run: python -m pip install meson ninja
+      - name: Generate Android Cross File
+        run: (Get-Content android_x86_64_crossfile_device.txt.template).Replace('${ANDROID_NDK_ROOT}', $env:ANDROID_NDK_ROOT) | Set-Content android_x86_64_crossfile_device.txt
       - name: Build windows x86
         run: |
           cd harfbuzz
           meson setup build --vsenv --wrap-mode=default --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
           meson compile -C build
           cd ..
-      - name: Upload windows artifacts
+      - name: Build Android x86_64
+        run: |
+          cd harfbuzz
+          meson setup build_android_x86_64 --cross-file ../android_x86_64_crossfile_device.txt --wrap-mode=default --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+          meson compile -C build_android_x86_64
+          
+          cd build_android_x86_64
+          
+          $NDK_BIN = Join-Path -Path $env:ANDROID_NDK_ROOT -ChildPath "/toolchains/llvm/prebuilt/windows-x86_64/bin"
+          $NDK_OBJCOPY = Join-Path -Path $NDK_BIN -ChildPath "llvm-objcopy.exe"
+          $NDK_STRIP = Join-Path -Path $NDK_BIN -ChildPath "llvm-strip.exe"
+          
+          & "$NDK_OBJCOPY" --only-keep-debug src/libharfbuzz.so src/libharfbuzz.so.debug
+          & "$NDK_STRIP" --strip-debug src/libharfbuzz.so
+          & "$NDK_OBJCOPY" --add-gnu-debuglink=src/libharfbuzz.so.debug src/libharfbuzz.so
+          
+          cd ../..
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
           name: windows-artifacts
           path: |
             ./harfbuzz/build/src/*.dll
             ./harfbuzz/build/src/*.pdb
+      - name: Upload Android x86_64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-x86_64-artifacts
+          path: |
+            ./harfbuzz/build_android_x86_64/src/*.so
+            ./harfbuzz/build_android_x86_64/src/*.debug
             
   osx:
     runs-on: macos-14

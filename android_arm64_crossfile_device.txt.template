@@ -1,0 +1,21 @@
+[binaries]
+c          = ANDROID_NDK / 'aarch64-linux-android35-clang'
+cpp        = ANDROID_NDK / 'aarch64-linux-android35-clang++'
+ar         = ANDROID_NDK / 'llvm-ar'
+nm         = ANDROID_NDK / 'llvm-nm'
+strip      = ANDROID_NDK / 'llvm-strip'
+ranlib     = ANDROID_NDK / 'llvm-ranlib'
+size       = ANDROID_NDK / 'llvm-size'
+ld         = ANDROID_NDK / 'ld'
+c_ld       = ANDROID_NDK / 'ld'
+objcopy    = ANDROID_NDK / 'llvm-objcopy'
+pkg-config = '/usr/bin/pkg-config'
+
+[host_machine]
+system     = 'android'
+cpu_family = 'aarch64'
+cpu        = 'arm64-v8a'
+endian     = 'little'
+
+[constants]
+ANDROID_NDK = '${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/'

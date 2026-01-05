@@ -1,0 +1,20 @@
+[binaries]
+c          = NDK_BIN / 'x86_64-linux-android35-clang.cmd'
+cpp        = NDK_BIN / 'x86_64-linux-android35-clang++.cmd'
+ar         = NDK_BIN / 'llvm-ar.exe'
+nm         = NDK_BIN / 'llvm-nm.exe'
+strip      = NDK_BIN / 'llvm-strip.exe'
+ranlib     = NDK_BIN / 'llvm-ranlib.exe'
+size       = NDK_BIN / 'llvm-size.exe'
+ld         = NDK_BIN / 'ld.exe'
+c_ld       = NDK_BIN / 'ld.exe'
+objcopy    = NDK_BIN / 'llvm-objcopy.exe'
+
+[host_machine]
+system     = 'android'
+cpu_family = 'x86_64'
+cpu        = 'x86_64'
+endian     = 'little'
+
+[constants]
+NDK_BIN = '${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/windows-x86_64/bin/'
