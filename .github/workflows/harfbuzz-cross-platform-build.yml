@@ -33,7 +33,7 @@ jobs:
       - name: Build linux x86
         run: |
           cd harfbuzz
-          meson setup build --wrap-mode=default --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+          meson setup build --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
           meson compile -C build
           objcopy --only-keep-debug build/src/libharfbuzz.so build/src/libharfbuzz.so.debug
           strip --strip-debug build/src/libharfbuzz.so
@@ -42,7 +42,7 @@ jobs:
       - name: Build Android ARM64
         run: |
           cd harfbuzz
-          meson setup build_android_arm64 --cross-file ../android_arm64_crossfile_device.txt --wrap-mode=default --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+          meson setup build_android_arm64 --cross-file ../android_arm64_crossfile_device.txt --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
           meson compile -C build_android_arm64
           cd build_android_arm64
           ANDROID_NDK="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/"
@@ -53,7 +53,7 @@ jobs:
       - name: Build Android ARM32
         run: |
           cd harfbuzz
-          meson setup build_android_arm32 --cross-file ../android_arm32_crossfile_device.txt --wrap-mode=default --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+          meson setup build_android_arm32 --cross-file ../android_arm32_crossfile_device.txt --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
           meson compile -C build_android_arm32
           cd build_android_arm32
           NDK_BIN="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/"
@@ -82,7 +82,7 @@ jobs:
           path: |
             ./harfbuzz/build_android_arm32/src/*.so
             ./harfbuzz/build_android_arm32/src/*.debug
-            
+
   windows:
     runs-on: windows-2022
     steps:
@@ -105,25 +105,25 @@ jobs:
       - name: Build windows x86
         run: |
           cd harfbuzz
-          meson setup build --vsenv --wrap-mode=default --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+          meson setup build --vsenv --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
           meson compile -C build
           cd ..
       - name: Build Android x86_64
         run: |
           cd harfbuzz
-          meson setup build_android_x86_64 --cross-file ../android_x86_64_crossfile_device.txt --wrap-mode=default --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+          meson setup build_android_x86_64 --cross-file ../android_x86_64_crossfile_device.txt --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
           meson compile -C build_android_x86_64
-          
+
           cd build_android_x86_64
-          
+
           $NDK_BIN = Join-Path -Path $env:ANDROID_NDK_ROOT -ChildPath "/toolchains/llvm/prebuilt/windows-x86_64/bin"
           $NDK_OBJCOPY = Join-Path -Path $NDK_BIN -ChildPath "llvm-objcopy.exe"
           $NDK_STRIP = Join-Path -Path $NDK_BIN -ChildPath "llvm-strip.exe"
-          
+
           & "$NDK_OBJCOPY" --only-keep-debug src/libharfbuzz.so src/libharfbuzz.so.debug
           & "$NDK_STRIP" --strip-debug src/libharfbuzz.so
           & "$NDK_OBJCOPY" --add-gnu-debuglink=src/libharfbuzz.so.debug src/libharfbuzz.so
-          
+
           cd ../..
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
@@ -139,7 +139,7 @@ jobs:
           path: |
             ./harfbuzz/build_android_x86_64/src/*.so
             ./harfbuzz/build_android_x86_64/src/*.debug
-            
+
   osx:
     runs-on: macos-14
     steps:
@@ -156,11 +156,21 @@ jobs:
       - name: Build osx universal
         run: |
           cd harfbuzz
-          meson setup build --wrap-mode=default --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
-          meson compile -C build          
-          meson setup build_ios_device --cross-file ../ios_crossfile_device.txt --wrap-mode=default --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
-          meson compile -C build_ios_device          
-          meson setup build_ios_simulator --cross-file ../ios_crossfile_simulator.txt --wrap-mode=default --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+          meson setup build_x86_64 --cross-file ../macos_x86_64_crossfile_device.txt --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+          meson compile -C build_x86_64
+          meson setup build_arm64 --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+          meson compile -C build_arm64
+          mkdir -p build/src
+          echo "*" >> build/.gitignore
+          lipo -create build_x86_64/src/libharfbuzz-subset.0.dylib build_arm64/src/libharfbuzz-subset.0.dylib -output build/src/libharfbuzz-subset.0.dylib
+          lipo -create build_x86_64/src/libharfbuzz.0.dylib build_arm64/src/libharfbuzz.0.dylib -output build/src/libharfbuzz.0.dylib
+          cd build/src
+          ln -s libharfbuzz-subset.0.dylib libharfbuzz-subset.dylib
+          ln -s libharfbuzz.0.dylib libharfbuzz.dylib
+          cd ../..
+          meson setup build_ios_device --cross-file ../ios_crossfile_device.txt --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+          meson compile -C build_ios_device
+          meson setup build_ios_simulator --cross-file ../ios_crossfile_simulator.txt --buildtype=minsize -Dtests=disabled -Dutilities=disabled -Db_lto=true -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
           meson compile -C build_ios_simulator
           cd ..
       - name: Upload osx artifacts
