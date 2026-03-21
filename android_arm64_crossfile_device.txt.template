@@ -6,10 +6,9 @@ nm         = ANDROID_NDK / 'llvm-nm'
 strip      = ANDROID_NDK / 'llvm-strip'
 ranlib     = ANDROID_NDK / 'llvm-ranlib'
 size       = ANDROID_NDK / 'llvm-size'
-ld         = ANDROID_NDK / 'ld'
-c_ld       = ANDROID_NDK / 'ld'
+ld         = ANDROID_NDK / 'ld.lld'
+c_ld       = ANDROID_NDK / 'ld.lld'
 objcopy    = ANDROID_NDK / 'llvm-objcopy'
-pkg-config = '/usr/bin/pkg-config'
 
 [host_machine]
 system     = 'android'
