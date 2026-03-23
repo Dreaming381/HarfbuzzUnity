@@ -11,64 +11,54 @@ on:
 jobs:
   linux:
     runs-on: ubuntu-24.04
+
     steps:
       - name: Git checkout
         uses: actions/checkout@v6
         with:
           submodules: 'recursive'
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.x'
-      - name: Setup meson
+
+      - name: Install Meson and Ninja
         run: python -m pip install meson ninja
-      - name: Build libpng and zlib for Linux x86_64
-        run: |
-          git clone --depth 1 https://github.com/glennrp/libpng.git libpng
-          cmake -S libpng -B libpng/build_linux_x86_64 \
-            -G "Ninja" \
-            -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_INSTALL_PREFIX=libpng/install_linux_x86_64 \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DPNG_SHARED=OFF \
-            -DPNG_TESTS=OFF
-          cmake --build libpng/build_linux_x86_64
-          cmake --install libpng/build_linux_x86_64
-          git clone --depth 1 https://github.com/madler/zlib.git zlib
-          cmake -S zlib -B zlib/build_linux_x86_64 \
-            -G "Ninja" \
-            -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_INSTALL_PREFIX=zlib/install_linux_x86_64 \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DBUILD_SHARED_LIBS=OFF
-          cmake --build zlib/build_linux_x86_64
-          cmake --install zlib/build_linux_x86_64
+
+      - name: Cache Meson subprojects
+        uses: actions/cache@v5
+        with:
+          path: harfbuzz/subprojects/packagecache
+          key: meson-wraps-linux
+
       - name: Build Linux x86_64
         run: |
           cd harfbuzz
           meson setup build \
             --buildtype=minsize \
-            --pkg-config-path=../libpng/install_linux_x86_64/lib/pkgconfig:../zlib/install_linux_x86_64/lib/pkgconfig \
-            -Dtests=disabled -Dutilities=disabled -Db_lto=true \
-            -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled \
-            -Dicu=disabled -Dgobject=disabled -Dchafa=disabled \
+            --wrap-mode=forcefallback \
+            -Dtests=disabled \
+            -Dutilities=disabled \
+            -Db_lto=true \
+            -Dfreetype=disabled \
+            -Dglib=disabled \
+            -Dcairo=disabled \
+            -Dicu=disabled \
+            -Dgobject=disabled \
+            -Dchafa=disabled \
             -Ddefault_library=shared \
             -Dc_link_args='-static-libgcc' \
             -Dcpp_link_args='-static-libgcc -static-libstdc++'
           meson compile -C build
-          objcopy --only-keep-debug build/src/libharfbuzz.so build/src/libharfbuzz.so.debug
-          strip --strip-debug build/src/libharfbuzz.so
-          objcopy --add-gnu-debuglink=build/src/libharfbuzz.so.debug build/src/libharfbuzz.so
-          objcopy --only-keep-debug build/src/libharfbuzz-subset.so build/src/libharfbuzz-subset.so.debug
-          strip --strip-debug build/src/libharfbuzz-subset.so
-          objcopy --add-gnu-debuglink=build/src/libharfbuzz-subset.so.debug build/src/libharfbuzz-subset.so
-          objcopy --only-keep-debug build/src/libharfbuzz-raster.so build/src/libharfbuzz-raster.so.debug
-          strip --strip-debug build/src/libharfbuzz-raster.so
-          objcopy --add-gnu-debuglink=build/src/libharfbuzz-raster.so.debug build/src/libharfbuzz-raster.so
-          objcopy --only-keep-debug build/src/libharfbuzz-vector.so build/src/libharfbuzz-vector.so.debug
-          strip --strip-debug build/src/libharfbuzz-vector.so
-          objcopy --add-gnu-debuglink=build/src/libharfbuzz-vector.so.debug build/src/libharfbuzz-vector.so
+          # create debug symbols and strip
+          for lib in libharfbuzz.so libharfbuzz-subset.so libharfbuzz-raster.so libharfbuzz-vector.so; do
+            objcopy --only-keep-debug build/src/$lib build/src/$lib.debug
+            strip --strip-debug build/src/$lib
+            objcopy --add-gnu-debuglink=build/src/$lib.debug build/src/$lib
+          done
           cd ..
+
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -79,131 +69,91 @@ jobs:
 
   android:
     runs-on: ubuntu-24.04
+
     steps:
       - name: Git checkout
         uses: actions/checkout@v6
         with:
           submodules: 'recursive'
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.x'
+
       - name: Set up NDK
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r27d
-      - name: Setup meson
+
+      - name: Install Meson and Ninja
         run: python -m pip install meson ninja
+
+      - name: Set NDK_BIN
+        run: echo "NDK_BIN=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_ENV
+
       - name: Generate Android Cross Files
         run: |
+          # Use the NDK_BIN value from the environment
           envsubst < android_arm64_crossfile_device.txt.template > android_arm64_crossfile_device.txt
           envsubst < android_arm32_crossfile_device.txt.template > android_arm32_crossfile_device.txt
-      - name: Build libpng and zlib for Android
-        run: |
-          git clone --depth 1 https://github.com/glennrp/libpng.git libpng
-          git clone --depth 1 https://github.com/madler/zlib.git zlib
 
-          # ARM64
-          cmake -S libpng -B libpng/build_android_arm64 \
-            -G "Ninja" \
-            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=arm64-v8a \
-            -DANDROID_PLATFORM=android-35 \
-            -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_INSTALL_PREFIX=libpng/install_android_arm64 \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DPNG_SHARED=OFF \
-            -DPNG_TESTS=OFF
-          cmake --build libpng/build_android_arm64
-          cmake --install libpng/build_android_arm64
-          cmake -S zlib -B zlib/build_android_arm64 \
-            -G "Ninja" \
-            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=arm64-v8a \
-            -DANDROID_PLATFORM=android-35 \
-            -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_INSTALL_PREFIX=zlib/install_android_arm64 \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DBUILD_SHARED_LIBS=OFF
-          cmake --build zlib/build_android_arm64
-          cmake --install zlib/build_android_arm64
+      - name: Cache Meson subprojects
+        uses: actions/cache@v5
+        with:
+          path: harfbuzz/subprojects/packagecache
+          key: meson-wraps-${{ runner.os }}-android-arm
 
-          # ARM32
-          cmake -S libpng -B libpng/build_android_arm32 \
-            -G "Ninja" \
-            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=armeabi-v7a \
-            -DANDROID_PLATFORM=android-35 \
-            -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_INSTALL_PREFIX=libpng/install_android_arm32 \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DPNG_SHARED=OFF \
-            -DPNG_TESTS=OFF
-          cmake --build libpng/build_android_arm32
-          cmake --install libpng/build_android_arm32
-          cmake -S zlib -B zlib/build_android_arm32 \
-            -G "Ninja" \
-            -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake \
-            -DANDROID_ABI=armeabi-v7a \
-            -DANDROID_PLATFORM=android-35 \
-            -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_INSTALL_PREFIX=zlib/install_android_arm32 \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DBUILD_SHARED_LIBS=OFF
-          cmake --build zlib/build_android_arm32
-          cmake --install zlib/build_android_arm32
       - name: Build Android ARM64
         run: |
           cd harfbuzz
           meson setup build_android_arm64 \
             --cross-file ../android_arm64_crossfile_device.txt \
             --buildtype=minsize \
-            --pkg-config-path=../libpng/install_android_arm64/lib/pkgconfig:../zlib/install_android_arm64/lib/pkgconfig \
-            -Dtests=disabled -Dutilities=disabled -Db_lto=true \
-            -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled \
-            -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+            --wrap-mode=forcefallback \
+            -Dtests=disabled \
+            -Dutilities=disabled \
+            -Db_lto=true \
+            -Dfreetype=disabled \
+            -Dglib=disabled \
+            -Dcairo=disabled \
+            -Dicu=disabled \
+            -Dgobject=disabled \
+            -Dchafa=disabled
           meson compile -C build_android_arm64
           cd build_android_arm64
-          ANDROID_NDK="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/"
-          "$ANDROID_NDK/llvm-objcopy" --only-keep-debug src/libharfbuzz.so src/libharfbuzz.so.debug
-          "$ANDROID_NDK/llvm-strip" --strip-debug src/libharfbuzz.so
-          "$ANDROID_NDK/llvm-objcopy" --add-gnu-debuglink=src/libharfbuzz.so.debug src/libharfbuzz.so
-          "$ANDROID_NDK/llvm-objcopy" --only-keep-debug src/libharfbuzz-subset.so src/libharfbuzz-subset.so.debug
-          "$ANDROID_NDK/llvm-strip" --strip-debug src/libharfbuzz-subset.so
-          "$ANDROID_NDK/llvm-objcopy" --add-gnu-debuglink=src/libharfbuzz-subset.so.debug src/libharfbuzz-subset.so
-          "$ANDROID_NDK/llvm-objcopy" --only-keep-debug src/libharfbuzz-raster.so src/libharfbuzz-raster.so.debug
-          "$ANDROID_NDK/llvm-strip" --strip-debug src/libharfbuzz-raster.so
-          "$ANDROID_NDK/llvm-objcopy" --add-gnu-debuglink=src/libharfbuzz-raster.so.debug src/libharfbuzz-raster.so
-          "$ANDROID_NDK/llvm-objcopy" --only-keep-debug src/libharfbuzz-vector.so src/libharfbuzz-vector.so.debug
-          "$ANDROID_NDK/llvm-strip" --strip-debug src/libharfbuzz-vector.so
-          "$ANDROID_NDK/llvm-objcopy" --add-gnu-debuglink=src/libharfbuzz-vector.so.debug src/libharfbuzz-vector.so
+          for lib in libharfbuzz.so libharfbuzz-subset.so libharfbuzz-raster.so libharfbuzz-vector.so; do
+            "$NDK_BIN/llvm-objcopy" --only-keep-debug src/$lib src/$lib.debug
+            "$NDK_BIN/llvm-strip" --strip-debug src/$lib
+            "$NDK_BIN/llvm-objcopy" --add-gnu-debuglink=src/$lib.debug src/$lib
+          done
           cd ../..
+
       - name: Build Android ARM32
         run: |
           cd harfbuzz
           meson setup build_android_arm32 \
             --cross-file ../android_arm32_crossfile_device.txt \
             --buildtype=minsize \
-            --pkg-config-path=../libpng/install_android_arm32/lib/pkgconfig:../zlib/install_android_arm32/lib/pkgconfig \
-            -Dtests=disabled -Dutilities=disabled -Db_lto=true \
-            -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled \
-            -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+            --wrap-mode=forcefallback \
+            -Dtests=disabled \
+            -Dutilities=disabled \
+            -Db_lto=true \
+            -Dfreetype=disabled \
+            -Dglib=disabled \
+            -Dcairo=disabled \
+            -Dicu=disabled \
+            -Dgobject=disabled \
+            -Dchafa=disabled
           meson compile -C build_android_arm32
           cd build_android_arm32
-          NDK_BIN="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/"
-          "$NDK_BIN/llvm-objcopy" --only-keep-debug src/libharfbuzz.so src/libharfbuzz.so.debug
-          "$NDK_BIN/llvm-strip" --strip-debug src/libharfbuzz.so
-          "$NDK_BIN/llvm-objcopy" --add-gnu-debuglink=src/libharfbuzz.so.debug src/libharfbuzz.so
-          "$NDK_BIN/llvm-objcopy" --only-keep-debug src/libharfbuzz-subset.so src/libharfbuzz-subset.so.debug
-          "$NDK_BIN/llvm-strip" --strip-debug src/libharfbuzz-subset.so
-          "$NDK_BIN/llvm-objcopy" --add-gnu-debuglink=src/libharfbuzz-subset.so.debug src/libharfbuzz-subset.so
-          "$NDK_BIN/llvm-objcopy" --only-keep-debug src/libharfbuzz-raster.so src/libharfbuzz-raster.so.debug
-          "$NDK_BIN/llvm-strip" --strip-debug src/libharfbuzz-raster.so
-          "$NDK_BIN/llvm-objcopy" --add-gnu-debuglink=src/libharfbuzz-raster.so.debug src/libharfbuzz-raster.so
-          "$NDK_BIN/llvm-objcopy" --only-keep-debug src/libharfbuzz-vector.so src/libharfbuzz-vector.so.debug
-          "$NDK_BIN/llvm-strip" --strip-debug src/libharfbuzz-vector.so
-          "$NDK_BIN/llvm-objcopy" --add-gnu-debuglink=src/libharfbuzz-vector.so.debug src/libharfbuzz-vector.so
+          for lib in libharfbuzz.so libharfbuzz-subset.so libharfbuzz-raster.so libharfbuzz-vector.so; do
+            "$NDK_BIN/llvm-objcopy" --only-keep-debug src/$lib src/$lib.debug
+            "$NDK_BIN/llvm-strip" --strip-debug src/$lib
+            "$NDK_BIN/llvm-objcopy" --add-gnu-debuglink=src/$lib.debug src/$lib
+          done
           cd ../..
+
       - name: Upload Android ARM64 artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -211,8 +161,7 @@ jobs:
           path: |
             ./harfbuzz/build_android_arm64/src/*.so
             ./harfbuzz/build_android_arm64/src/*.so.debug
-            ./libpng/install_android_arm64/lib/*.a
-            ./zlib/install_android_arm64/lib/*.a
+
       - name: Upload Android ARM32 artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -220,44 +169,49 @@ jobs:
           path: |
             ./harfbuzz/build_android_arm32/src/*.so
             ./harfbuzz/build_android_arm32/src/*.so.debug
-            ./libpng/install_android_arm32/lib/*.a
-            ./zlib/install_android_arm32/lib/*.a
 
   windows:
     runs-on: windows-2025
+
     steps:
       - name: Git checkout
         uses: actions/checkout@v6
         with:
           submodules: 'recursive'
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.x'
-      - name: Setup meson
+
+      - name: Install Meson and Ninja
         run: python -m pip install meson ninja
-      - name: Install libpng and zlib
-        run: vcpkg install libpng:x64-windows zlib:x64-windows
-      - name: Install pkg-config
-        run: choco install pkgconfiglite -y
-      - name: Build windows x86_64
+
+      - name: Cache Meson subprojects
+        uses: actions/cache@v5
+        with:
+          path: harfbuzz/subprojects/packagecache
+          key: meson-wraps-windows
+
+      - name: Build Windows x86_64
         run: |
           cd harfbuzz
           meson setup build `
             --vsenv `
             --buildtype=minsize `
-            --pkg-config-path="$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\pkgconfig" `
-            -Dtests=disabled -Dutilities=disabled -Db_lto=true `
-            -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled `
-            -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+            --wrap-mode=forcefallback `
+            -Dtests=disabled `
+            -Dutilities=disabled `
+            -Db_lto=true `
+            -Dfreetype=disabled `
+            -Dglib=disabled `
+            -Dcairo=disabled `
+            -Dicu=disabled `
+            -Dgobject=disabled `
+            -Dchafa=disabled
           meson compile -C build
           cd ..
-      - name: Copy vcpkg libs to build output
-        run: |
-          copy "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\libpng16.dll" harfbuzz\build\src\
-          copy "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\zlib1.dll" harfbuzz\build\src\
-          copy "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\libpng16.lib" harfbuzz\build\src\
-          copy "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\lib\zlib.lib" harfbuzz\build\src\
+
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -266,81 +220,91 @@ jobs:
             ./harfbuzz/build/src/*.dll
             ./harfbuzz/build/src/*.pdb
             ./harfbuzz/build/src/*.lib
+            ./harfbuzz/build/subprojects/**/*.dll
 
   android-x86_64:
     runs-on: windows-2025
+
     steps:
       - name: Git checkout
         uses: actions/checkout@v6
         with:
           submodules: 'recursive'
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.x'
+
       - name: Set up NDK
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r27d
-      - name: Setup meson
+
+      - name: Setup Meson and Ninja
         run: python -m pip install meson ninja
+
+      # Cache Meson wrap downloads (critical for CI speed)
+      - name: Cache Meson subprojects
+        uses: actions/cache@v5
+        with:
+          path: harfbuzz/subprojects/packagecache
+          key: meson-wraps-${{ runner.os }}-android-x86_64
+
       - name: Generate Android Cross File
-        run: (Get-Content android_x86_64_crossfile_device.txt.template).Replace('${ANDROID_NDK_ROOT}', $env:ANDROID_NDK_ROOT) | Set-Content android_x86_64_crossfile_device.txt
-      - name: Build libpng and zlib for Android x86_64
         run: |
-          git clone --depth 1 https://github.com/glennrp/libpng.git libpng
-          git clone --depth 1 https://github.com/madler/zlib.git zlib
-          cmake -S libpng -B libpng/build_android_x86_64 `
-            -G "Ninja" `
-            -DCMAKE_TOOLCHAIN_FILE="$env:ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake" `
-            -DANDROID_ABI=x86_64 `
-            -DANDROID_PLATFORM=android-35 `
-            -DCMAKE_BUILD_TYPE=MinSizeRel `
-            -DCMAKE_INSTALL_PREFIX=libpng/install_android_x86_64 `
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON `
-            -DPNG_SHARED=OFF `
-            -DPNG_TESTS=OFF
-          cmake --build libpng/build_android_x86_64
-          cmake --install libpng/build_android_x86_64
-          cmake -S zlib -B zlib/build_android_x86_64 `
-            -G "Ninja" `
-            -DCMAKE_TOOLCHAIN_FILE="$env:ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake" `
-            -DANDROID_ABI=x86_64 `
-            -DANDROID_PLATFORM=android-35 `
-            -DCMAKE_BUILD_TYPE=MinSizeRel `
-            -DCMAKE_INSTALL_PREFIX=zlib/install_android_x86_64 `
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON `
-            -DBUILD_SHARED_LIBS=OFF
-          cmake --build zlib/build_android_x86_64
-          cmake --install zlib/build_android_x86_64
-      - name: Build Android x86_64
+          # Path to the NDK bin folder on this runner
+          $ndkBin = Join-Path -Path $env:ANDROID_NDK_ROOT -ChildPath "toolchains/llvm/prebuilt/windows-x86_64/bin"
+
+          # Read the template, replace the placeholder with the real path
+          $template = Get-Content android_x86_64_crossfile_device.txt.template
+          $crossfile = $template -replace '\$\{NDK_BIN\}', $ndkBin
+
+          # Save the generated cross file for Meson
+          $crossfile | Set-Content android_x86_64_crossfile_device.txt
+
+      - name: Verify generated cross file
+        run: Get-Content android_x86_64_crossfile_device.txt
+        
+      # Configure + build with debug logging
+      - name: Build Android x86_64 with Harfbuzz (wraps + debug)
         run: |
           cd harfbuzz
+
           meson setup build_android_x86_64 `
             --cross-file ../android_x86_64_crossfile_device.txt `
             --buildtype=minsize `
-            --pkg-config-path="..\libpng\install_android_x86_64\lib\pkgconfig;..\zlib\install_android_x86_64\lib\pkgconfig" `
-            -Dtests=disabled -Dutilities=disabled -Db_lto=true `
-            -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled `
-            -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
-          meson compile -C build_android_x86_64
+            --wrap-mode=forcefallback `
+            -Dtests=disabled `
+            -Dutilities=disabled `
+            -Db_lto=true `
+            -Dfreetype=disabled `
+            -Dglib=disabled `
+            -Dcairo=disabled `
+            -Dicu=disabled `
+            -Dgobject=disabled `
+            -Dchafa=disabled
+
+          meson compile -C build_android_x86_64        
+
           cd build_android_x86_64
-          $NDK_BIN = Join-Path -Path $env:ANDROID_NDK_ROOT -ChildPath "/toolchains/llvm/prebuilt/windows-x86_64/bin"
+
+          $NDK_BIN = Join-Path -Path $env:ANDROID_NDK_ROOT -ChildPath "toolchains/llvm/prebuilt/windows-x86_64/bin"
           $NDK_OBJCOPY = Join-Path -Path $NDK_BIN -ChildPath "llvm-objcopy.exe"
           $NDK_STRIP = Join-Path -Path $NDK_BIN -ChildPath "llvm-strip.exe"
-          & "$NDK_OBJCOPY" --only-keep-debug src/libharfbuzz.so src/libharfbuzz.so.debug
-          & "$NDK_STRIP" --strip-debug src/libharfbuzz.so
-          & "$NDK_OBJCOPY" --add-gnu-debuglink=src/libharfbuzz.so.debug src/libharfbuzz.so
-          & "$NDK_OBJCOPY" --only-keep-debug src/libharfbuzz-subset.so src/libharfbuzz-subset.so.debug
-          & "$NDK_STRIP" --strip-debug src/libharfbuzz-subset.so
-          & "$NDK_OBJCOPY" --add-gnu-debuglink=src/libharfbuzz-subset.so.debug src/libharfbuzz-subset.so
-          & "$NDK_OBJCOPY" --only-keep-debug src/libharfbuzz-raster.so src/libharfbuzz-raster.so.debug
-          & "$NDK_STRIP" --strip-debug src/libharfbuzz-raster.so
-          & "$NDK_OBJCOPY" --add-gnu-debuglink=src/libharfbuzz-raster.so.debug src/libharfbuzz-raster.so
-          & "$NDK_OBJCOPY" --only-keep-debug src/libharfbuzz-vector.so src/libharfbuzz-vector.so.debug
-          & "$NDK_STRIP" --strip-debug src/libharfbuzz-vector.so
-          & "$NDK_OBJCOPY" --add-gnu-debuglink=src/libharfbuzz-vector.so.debug src/libharfbuzz-vector.so
+
+          foreach ($lib in @("libharfbuzz.so", "libharfbuzz-subset.so", "libharfbuzz-raster.so", "libharfbuzz-vector.so")) {
+              if (Test-Path "src/$lib") {
+                  & "$NDK_OBJCOPY" --only-keep-debug "src/$lib" "src/$lib.debug"
+                  & "$NDK_STRIP" --strip-debug "src/$lib"
+                  & "$NDK_OBJCOPY" --add-gnu-debuglink="src/$lib.debug" "src/$lib"
+              } else {
+                  Write-Host "Skipping missing $lib"
+              }
+          }
+
           cd ../..
+
       - name: Upload Android x86_64 artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -348,145 +312,70 @@ jobs:
           path: |
             ./harfbuzz/build_android_x86_64/src/*.so
             ./harfbuzz/build_android_x86_64/src/*.so.debug
-            ./libpng/install_android_x86_64/lib/*.a
-            ./zlib/install_android_x86_64/lib/*.a
 
-  osx:
+  osx_ios:
     runs-on: macos-14
     steps:
       - name: Git checkout
         uses: actions/checkout@v6
         with:
           submodules: 'recursive'
+
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
           python-version: '3.x'
-      - name: Setup meson
+
+      - name: Setup Meson & Ninja
         run: python -m pip install meson ninja
-      - name: Build libpng and zlib for all targets
+
+      - name: Generate cross files
         run: |
-          git clone --depth 1 https://github.com/glennrp/libpng.git libpng
-          git clone --depth 1 https://github.com/madler/zlib.git zlib
+          cp ios_crossfile_device.txt.template ios_crossfile_device.txt
+          cp ios_crossfile_simulator.txt.template ios_crossfile_simulator.txt
+          cp macos_x86_64_crossfile_device.txt.template macos_x86_64_crossfile_device.txt
 
-          # macOS arm64
-          cmake -S libpng -B libpng/build_macos_arm64 \
-            -G "Ninja" \
-            -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_INSTALL_PREFIX=libpng/install_macos_arm64 \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DPNG_SHARED=OFF -DPNG_TESTS=OFF
-          cmake --build libpng/build_macos_arm64
-          cmake --install libpng/build_macos_arm64
-          cmake -S zlib -B zlib/build_macos_arm64 \
-            -G "Ninja" \
-            -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_INSTALL_PREFIX=zlib/install_macos_arm64 \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DBUILD_SHARED_LIBS=OFF
-          cmake --build zlib/build_macos_arm64
-          cmake --install zlib/build_macos_arm64
-
-          # macOS x86_64
-          cmake -S libpng -B libpng/build_macos_x86_64 \
-            -G "Ninja" \
-            -DCMAKE_OSX_ARCHITECTURES=x86_64 \
-            -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_INSTALL_PREFIX=libpng/install_macos_x86_64 \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DPNG_SHARED=OFF -DPNG_TESTS=OFF
-          cmake --build libpng/build_macos_x86_64
-          cmake --install libpng/build_macos_x86_64
-          cmake -S zlib -B zlib/build_macos_x86_64 \
-            -G "Ninja" \
-            -DCMAKE_OSX_ARCHITECTURES=x86_64 \
-            -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_INSTALL_PREFIX=zlib/install_macos_x86_64 \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DBUILD_SHARED_LIBS=OFF
-          cmake --build zlib/build_macos_x86_64
-          cmake --install zlib/build_macos_x86_64
-
-          # iOS device
-          cmake -S libpng -B libpng/build_ios_device \
-            -G "Ninja" \
-            -DCMAKE_SYSTEM_NAME=iOS \
-            -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
-            -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_INSTALL_PREFIX=libpng/install_ios_device \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DPNG_SHARED=OFF -DPNG_TESTS=OFF
-          cmake --build libpng/build_ios_device
-          cmake --install libpng/build_ios_device
-          cmake -S zlib -B zlib/build_ios_device \
-            -G "Ninja" \
-            -DCMAKE_SYSTEM_NAME=iOS \
-            -DCMAKE_OSX_ARCHITECTURES=arm64 \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
-            -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_INSTALL_PREFIX=zlib/install_ios_device \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DBUILD_SHARED_LIBS=OFF
-          cmake --build zlib/build_ios_device
-          cmake --install zlib/build_ios_device
-
-          # iOS simulator
-          cmake -S libpng -B libpng/build_ios_simulator \
-            -G "Ninja" \
-            -DCMAKE_SYSTEM_NAME=iOS \
-            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
-            -DCMAKE_OSX_SYSROOT=iphonesimulator \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
-            -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_INSTALL_PREFIX=libpng/install_ios_simulator \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DPNG_SHARED=OFF -DPNG_TESTS=OFF
-          cmake --build libpng/build_ios_simulator
-          cmake --install libpng/build_ios_simulator
-          cmake -S zlib -B zlib/build_ios_simulator \
-            -G "Ninja" \
-            -DCMAKE_SYSTEM_NAME=iOS \
-            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
-            -DCMAKE_OSX_SYSROOT=iphonesimulator \
-            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 \
-            -DCMAKE_BUILD_TYPE=MinSizeRel \
-            -DCMAKE_INSTALL_PREFIX=zlib/install_ios_simulator \
-            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
-            -DBUILD_SHARED_LIBS=OFF
-          cmake --build zlib/build_ios_simulator
-          cmake --install zlib/build_ios_simulator
-
-      - name: Build macOS x86_64
+      - name: Build Harfbuzz macOS x86_64
         run: |
           cd harfbuzz
           meson setup build_x86_64 \
             --cross-file ../macos_x86_64_crossfile_device.txt \
+            --wrap-mode=forcefallback \
             --buildtype=minsize \
-            --pkg-config-path=../libpng/install_macos_x86_64/lib/pkgconfig:../zlib/install_macos_x86_64/lib/pkgconfig \
-            -Dtests=disabled -Dutilities=disabled -Db_lto=true \
-            -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled \
-            -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+            -Dtests=disabled \
+            -Dutilities=disabled \
+            -Db_lto=true \
+            -Dfreetype=disabled \
+            -Dglib=disabled \
+            -Dcairo=disabled \
+            -Dicu=disabled \
+            -Dgobject=disabled \
+            -Dchafa=disabled
           meson compile -C build_x86_64
           cd ..
-      - name: Build macOS arm64
+
+      - name: Build Harfbuzz macOS arm64
         run: |
           cd harfbuzz
           meson setup build_arm64 \
             --buildtype=minsize \
-            --pkg-config-path=../libpng/install_macos_arm64/lib/pkgconfig:../zlib/install_macos_arm64/lib/pkgconfig \
-            -Dtests=disabled -Dutilities=disabled -Db_lto=true \
-            -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled \
-            -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+            --wrap-mode=forcefallback \
+            -Dtests=disabled \
+            -Dutilities=disabled \
+            -Db_lto=true \
+            -Dfreetype=disabled \
+            -Dglib=disabled \
+            -Dcairo=disabled \
+            -Dicu=disabled \
+            -Dgobject=disabled \
+            -Dchafa=disabled
           meson compile -C build_arm64
           cd ..
-      - name: Create macOS universal binary
+
+      - name: Create macOS universal binaries
         run: |
           cd harfbuzz
           mkdir -p build/src
-          echo "*" >> build/.gitignore
           lipo -create build_x86_64/src/libharfbuzz.0.dylib build_arm64/src/libharfbuzz.0.dylib -output build/src/libharfbuzz.0.dylib
           lipo -create build_x86_64/src/libharfbuzz-subset.0.dylib build_arm64/src/libharfbuzz-subset.0.dylib -output build/src/libharfbuzz-subset.0.dylib
           lipo -create build_x86_64/src/libharfbuzz-raster.0.dylib build_arm64/src/libharfbuzz-raster.0.dylib -output build/src/libharfbuzz-raster.0.dylib
@@ -496,36 +385,51 @@ jobs:
           cp build/src/libharfbuzz-raster.0.dylib build/src/libharfbuzz-raster.dylib
           cp build/src/libharfbuzz-vector.0.dylib build/src/libharfbuzz-vector.dylib
           cd ..
-      - name: Build iOS device
+
+      - name: Build Harfbuzz iOS device
         run: |
           cd harfbuzz
           meson setup build_ios_device \
             --cross-file ../ios_crossfile_device.txt \
+            --wrap-mode=forcefallback \
             --buildtype=minsize \
-            --pkg-config-path=../libpng/install_ios_device/lib/pkgconfig:../zlib/install_ios_device/lib/pkgconfig \
-            -Dtests=disabled -Dutilities=disabled -Db_lto=true \
-            -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled \
-            -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+            -Dtests=disabled \
+            -Dutilities=disabled \
+            -Db_lto=true \
+            -Dfreetype=disabled \
+            -Dglib=disabled \
+            -Dcairo=disabled \
+            -Dicu=disabled \
+            -Dgobject=disabled \
+            -Dchafa=disabled
           meson compile -C build_ios_device
           cd ..
-      - name: Build iOS simulator
+
+      - name: Build Harfbuzz iOS simulator
         run: |
           cd harfbuzz
           meson setup build_ios_simulator \
             --cross-file ../ios_crossfile_simulator.txt \
+            --wrap-mode=forcefallback \
             --buildtype=minsize \
-            --pkg-config-path=../libpng/install_ios_simulator/lib/pkgconfig:../zlib/install_ios_simulator/lib/pkgconfig \
-            -Dtests=disabled -Dutilities=disabled -Db_lto=true \
-            -Dfreetype=disabled -Dglib=disabled -Dcairo=disabled \
-            -Dicu=disabled -Dgobject=disabled -Dchafa=disabled
+            -Dtests=disabled \
+            -Dutilities=disabled \
+            -Db_lto=true \
+            -Dfreetype=disabled \
+            -Dglib=disabled \
+            -Dcairo=disabled \
+            -Dicu=disabled \
+            -Dgobject=disabled \
+            -Dchafa=disabled
           meson compile -C build_ios_simulator
           cd ..
-      - name: Upload osx artifacts
+
+      - name: Upload macOS universal binaries
         uses: actions/upload-artifact@v6
         with:
           name: osx-artifacts
-          path: |
-            ./harfbuzz/build/src/*.dylib
+          path: ./harfbuzz/build/src/*.dylib
+
       - name: Upload iOS artifacts
         uses: actions/upload-artifact@v6
         with:
