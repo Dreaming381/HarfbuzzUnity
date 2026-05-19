@@ -16,6 +16,12 @@ cpu_family = 'arm'
 cpu        = 'armeabi-v7a'
 endian     = 'little'
 
+[built-in options]
+c_args        = ['-fPIC', '-ffunction-sections', '-fdata-sections']
+cpp_args      = ['-fPIC', '-ffunction-sections', '-fdata-sections']
+c_link_args   = ['-Wl,--exclude-libs,ALL', '-Wl,--gc-sections']
+cpp_link_args = ['-Wl,--exclude-libs,ALL', '-Wl,--gc-sections']
+
 [constants]
 # NDK_BIN must be exported in the workflow:
 # echo "NDK_BIN=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_ENV

@@ -84,7 +84,7 @@ jobs:
       - name: Set up NDK
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r27d
+          ndk-version: r27c
 
       - name: Install Meson and Ninja
         run: python -m pip install meson ninja
@@ -119,7 +119,11 @@ jobs:
             -Dcairo=disabled \
             -Dicu=disabled \
             -Dgobject=disabled \
-            -Dchafa=disabled
+            -Dchafa=disabled \
+            -Dpng=enabled \
+            -Dzlib=enabled \
+            -Dlibpng:default_library=static \
+            -Dzlib:default_library=static
           meson compile -C build_android_arm64
           cd build_android_arm64
           for lib in libharfbuzz.so libharfbuzz-subset.so libharfbuzz-raster.so libharfbuzz-vector.so; do
@@ -144,7 +148,11 @@ jobs:
             -Dcairo=disabled \
             -Dicu=disabled \
             -Dgobject=disabled \
-            -Dchafa=disabled
+            -Dchafa=disabled \
+            -Dpng=enabled \
+            -Dzlib=enabled \
+            -Dlibpng:default_library=static \
+            -Dzlib:default_library=static
           meson compile -C build_android_arm32
           cd build_android_arm32
           for lib in libharfbuzz.so libharfbuzz-subset.so libharfbuzz-raster.so libharfbuzz-vector.so; do
@@ -239,7 +247,7 @@ jobs:
       - name: Set up NDK
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r27d
+          ndk-version: r27c
 
       - name: Setup Meson and Ninja
         run: python -m pip install meson ninja
@@ -283,7 +291,11 @@ jobs:
             -Dcairo=disabled `
             -Dicu=disabled `
             -Dgobject=disabled `
-            -Dchafa=disabled
+            -Dchafa=disabled `
+            -Dpng=enabled `
+            -Dzlib=enabled `
+            -Dlibpng:default_library=static `
+            -Dzlib:default_library=static
 
           meson compile -C build_android_x86_64        
 

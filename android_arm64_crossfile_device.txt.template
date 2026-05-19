@@ -16,6 +16,13 @@ cpu_family = 'aarch64'
 cpu        = 'arm64-v8a'
 endian     = 'little'
 
+[built-in options]
+c_args        = ['-fPIC', '-ffunction-sections', '-fdata-sections']
+cpp_args      = ['-fPIC', '-ffunction-sections', '-fdata-sections']
+# 16 KB page alignment - NDK r28+ defaults to this; r27.x needs it explicitly.
+c_link_args   = ['-Wl,-z,max-page-size=16384', '-Wl,-z,common-page-size=16384', '-Wl,--exclude-libs,ALL', '-Wl,--gc-sections']
+cpp_link_args = ['-Wl,-z,max-page-size=16384', '-Wl,-z,common-page-size=16384', '-Wl,--exclude-libs,ALL', '-Wl,--gc-sections']
+
 [constants]
 # NDK_BIN must be exported in the workflow:
 # echo "NDK_BIN=$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin" >> $GITHUB_ENV
